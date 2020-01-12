@@ -1,2 +1,4 @@
 [![CC0](http://i.creativecommons.org/p/zero/1.0/88x31.png)](http://creativecommons.org/publicdomain/zero/1.0/)   
-To the extent possible under law, [<span property="dct:title">Mischka</span>](https://mischk.neocities.org) has waived all copyright and related or neighboring rights to <span property="dct:title">AudioAdventcalendar</span>. This work is published from: <span property="vcard:Country" datatype="dct:ISO3166" content="DE" about="https://mischk.neocities.org">Germany</span>.
+To the extent possible under law, [<span property="dct:title">Mischka</span>](https://mischk.neocities.org) has waived all copyright and related or neighboring rights to AudioAdventcalendar. This work is published from: <span property="vcard:Country" datatype="dct:ISO3166" content="DE" about="https://mischk.neocities.org">Germany</span>.
+
+Same rights to the forked project <span property="dct:title">Audiokiste</span> by [<span property="dct:title">Matthias Bremer</span>](http://mbremer.net)
