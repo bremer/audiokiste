@@ -6,31 +6,32 @@
 // Audio Advent Calendar
 // (c) by Mischka 2011-2018 (mischka@mailbox.org)
 // Licensed under CC0
-
+//
 // feel free to optimize and modify the code, please share your
 // mods on the internet and send me a mail with the link
 
 #include <JQ6500_Serial.h>
 #include <SoftwareSerial.h>
 #include <Wire.h>
-// TODO for later implementation
-//#include "RTClib.h"
 #include <Keypad.h>
 #include <EEPROM.h>
 
 // size of the key pad
 const byte COLS = 3;
 const byte ROWS = 4;
-const int LED = 13;
+
+const int SWITCH_STOPTANZ = 4;
+const int SWITCH_SLEEPMODE = 5;
+
+const unsigned int LULLABY_FOLDER = 20; //
 const unsigned int RADIOPLAY_FOLDER = 0; // in this folder you cannot skip tracks
-const unsigned int VOLUME_MAX = 20; // 0-30
+const unsigned int VOLUME_MAX = 25; // 0-30
+
 // Adresses for persistence
 const unsigned int ADRESS_FILEINDEX = 0;
 const unsigned int ADRESS_VOLUME = 5;
 
 JQ6500_Serial mp3(2,3); // create an mp3 object
-// TODO for later implementation
-//RTC_DS1307 rtc;         // create an rtc object
 
 // define key pad
 char hexaKeys[ROWS][COLS] = {
@@ -43,8 +44,14 @@ byte colPins[COLS] = { 12, 11, 10 }; // digital pins for key pad
 byte rowPins[ROWS] = { 9, 8, 7, 6 }; // digital pins for key pad
 Keypad keypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
+// status varables
 char pressedKey;
 unsigned int folder = 9999;
+unsigned int tracknumber = 1;
+int statusStoptanz;
+int statusSleepmode;
+
+
 
 unsigned int readVolume() {
   int volume = EEPROM.read(ADRESS_VOLUME);
@@ -62,35 +69,21 @@ void setup() {
   Serial.begin(57600);
   Serial.println("Audiokiste");
   
-  pinMode(4, INPUT);
+  pinMode(SWITCH_STOPTANZ, INPUT);
+  pinMode(SWITCH_SLEEPMODE, INPUT);
   pinMode(13, OUTPUT);
+
+  statusSleepmode = digitalRead(SWITCH_STOPTANZ);
+  statusSleepmode = digitalRead(SWITCH_SLEEPMODE);
 
   // setup the mp3 module 
   mp3.begin(9600);
   mp3.reset();
-  delay(500);
+  delay(400);
   mp3.setVolume(readVolume()); // 0-30 - start with x
-  // TODO ask user which one is better
+
   // mp3.setLoopMode(MP3_LOOP_NONE);
   mp3.setLoopMode(MP3_LOOP_FOLDER);
-
-  // setup rtc
-  // TODO for later implementation
-  // Wire.begin();
-  // rtc.begin();
-
-  // comment out after first flashing
-  // rtc.adjust(DateTime(__DATE__, __TIME__));
-
-  // TODO for later implementation
-  // TODO speak current date at start up
-  // DateTime now = rtc.now();
-  // folder for date: 99
-  // 001.mp3 .. 031.mp3 days
-  // 101.mp3 .. 112.mp3 months
-  //  mp3.playFileNumberInFolderNumber(now.day() ,1);
-  //  delay(2000);
-  //  mp3.playFileNumberInFolderNumber(now.month() ,1);
 }
 
 void persistVolume(unsigned int volume) {
@@ -104,14 +97,12 @@ void persistVolume(unsigned int volume) {
 }
 
 void persistCurrentTrack() {
-  // TODO check if it is better to persist the tracknumer in folder
-  int fileIndex = mp3.currentFileIndexNumber(MP3_SRC_SDCARD);
-  int fileIndexPersistent;
-  EEPROM.get(ADRESS_FILEINDEX, fileIndexPersistent);
-  if (fileIndexPersistent != fileIndex) {
-    EEPROM.put(ADRESS_FILEINDEX, fileIndex);
+  int tracknumberPersistent;
+  EEPROM.get(ADRESS_FILEINDEX, tracknumberPersistent);
+  if (tracknumber != tracknumberPersistent) {
+    EEPROM.put(ADRESS_FILEINDEX, tracknumber);
     Serial.print("persist Track ");
-    Serial.print(fileIndex);
+    Serial.print(tracknumber);
     Serial.println(); 
   }
 }
@@ -132,7 +123,7 @@ void play(int nextFolder) {
   Serial.print("play folder ");
   Serial.print(folder);
   Serial.print(" File ");
-  Serial.print(mp3.currentFileIndexNumber(MP3_SRC_SDCARD));
+  Serial.print(tracknumber);
   Serial.println();
 }
 
@@ -144,27 +135,45 @@ void playRadio(int nextFolder) {
     Serial.println();
     folder = nextFolder;
 
-    int fileIndex;
-    EEPROM.get(ADRESS_FILEINDEX, fileIndex);
-    mp3.playFileByIndexNumber(fileIndex);
+    EEPROM.get(ADRESS_FILEINDEX, tracknumber);
+    mp3.playFileNumberInFolderNumber(folder,tracknumber);
     delay(500);
     if(mp3.getStatus() != MP3_STATUS_PLAYING) {
-      // it seems like there is no matching file
       mp3.playFileNumberInFolderNumber(folder, 1);
-      Serial.println("play track 1");
-      persistCurrentTrack();  
+      Serial.println("it seems like there is no matching file - play track 1");
     }
   } else {
-    if(mp3.getStatus() != MP3_STATUS_STOPPED) {
-      Serial.println("do not skip tracks");
-      return;
-    }
-    mp3.next();
+    mp3.playFileNumberInFolderNumber(folder,++tracknumber);
     persistCurrentTrack();
   }
 }
 
+void checkSwitches() {
+  
+  int newStatusStoptanz = digitalRead(SWITCH_STOPTANZ);
+  if (statusStoptanz != newStatusStoptanz) {
+    delay(100);
+    statusStoptanz = newStatusStoptanz;
+    Serial.print("Stoptanz ");
+    Serial.print(statusStoptanz);
+    Serial.println();
+  }
+
+  int newStatusSleepmode = digitalRead(SWITCH_SLEEPMODE);
+  if (statusSleepmode != newStatusSleepmode) {
+    delay(100);
+    statusSleepmode = newStatusSleepmode;
+    Serial.print("Sleepmode ");
+    Serial.print(statusSleepmode);
+    Serial.println();
+    // TODO play LULLABY_FOLDER 
+  }
+
+}
+
 void loop() {
+  checkSwitches();
+  
   pressedKey = keypad.getKey();
   if (pressedKey) {
     Serial.print("key ");
@@ -181,7 +190,6 @@ void loop() {
         play(nextFolder);        
       }
     } else if(pressedKey == '#') {
-      // TODO persist current volume
       if (mp3.getVolume() <= VOLUME_MAX) {
         mp3.volumeUp();
         Serial.print("volume up to ");
@@ -196,13 +204,6 @@ void loop() {
       Serial.println();
       persistVolume(mp3.getVolume());
     }
-  }
-
-  // no key pressed, but radio track played to the end
-  if(RADIOPLAY_FOLDER == folder && mp3.getStatus() == MP3_STATUS_STOPPED) {
-    // TODO stop radio play tracks at the end
-    // TODO check if it's nessesary
-    persistCurrentTrack();
   }
 
 }
