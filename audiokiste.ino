@@ -23,7 +23,8 @@ const byte ROWS = 4;
 const int SWITCH_STOPTANZ = 4;
 const int SWITCH_SLEEPMODE = 5;
 
-const unsigned int LULLABY_FOLDER = 20; //
+const unsigned int LULLABY_FOLDER = 20;
+const unsigned int DELAY_STOPTANZ = 10000;
 const unsigned int RADIOPLAY_FOLDER = 0; // in this folder you cannot skip tracks
 const unsigned int VOLUME_MAX = 25; // 0-30
 
@@ -50,20 +51,9 @@ unsigned int folder = 9999;
 unsigned int tracknumber = 1;
 int statusStoptanz;
 int statusSleepmode;
+long timeStarttanz = 2147483647L;
+long timeStoptanz = 2147483647L;
 
-
-
-unsigned int readVolume() {
-  int volume = EEPROM.read(ADRESS_VOLUME);
-  if (volume < 0 || volume > VOLUME_MAX) {
-    // default if there is an other value in EEPROM
-    volume = 10;
-  }
-  Serial.print("read volume ");
-  Serial.print(volume);
-  Serial.println();
-  return volume;
-}
 
 void setup() {
   Serial.begin(57600);
@@ -82,8 +72,21 @@ void setup() {
   delay(400);
   mp3.setVolume(readVolume()); // 0-30 - start with x
 
-  // mp3.setLoopMode(MP3_LOOP_NONE);
   mp3.setLoopMode(MP3_LOOP_FOLDER);
+
+  randomSeed(analogRead(0));
+}
+
+unsigned int readVolume() {
+  int volume = EEPROM.read(ADRESS_VOLUME);
+  if (volume < 0 || volume > VOLUME_MAX) {
+    // default if there is an other value in EEPROM
+    volume = 10;
+  }
+  Serial.print("read volume ");
+  Serial.print(volume);
+  Serial.println();
+  return volume;
 }
 
 void persistVolume(unsigned int volume) {
@@ -157,6 +160,14 @@ void checkSwitches() {
     Serial.print("Stoptanz ");
     Serial.print(statusStoptanz);
     Serial.println();
+    if(statusStoptanz) {
+      timeStarttanz = millis();
+      timeStoptanz = random(timeStarttanz + 2000, timeStarttanz + 15000);
+    } else {
+      mp3.play();
+      timeStarttanz = 2147483647L;
+      timeStoptanz = 2147483647L;
+    }
   }
 
   int newStatusSleepmode = digitalRead(SWITCH_SLEEPMODE);
@@ -166,14 +177,33 @@ void checkSwitches() {
     Serial.print("Sleepmode ");
     Serial.print(statusSleepmode);
     Serial.println();
-    // TODO play LULLABY_FOLDER 
+    if(statusSleepmode) {
+      mp3.playFileNumberInFolderNumber(LULLABY_FOLDER, 1);
+    } else {
+      mp3.pause();
+    } 
   }
+}
 
+void checkStoptanz() {
+  if(statusStoptanz) {
+    long time = millis();
+    if(time >= timeStoptanz && mp3.getStatus() == MP3_STATUS_PLAYING) {
+      mp3.pause();
+      timeStarttanz = time + DELAY_STOPTANZ;
+    } else if(time >= timeStarttanz && mp3.getStatus() == MP3_STATUS_PAUSED) {
+      mp3.play();
+      timeStarttanz = time;
+      timeStoptanz = random(time + 2000, time + 15000);
+    }
+  }
 }
 
 void loop() {
   checkSwitches();
-  
+
+  checkStoptanz();
+    
   pressedKey = keypad.getKey();
   if (pressedKey) {
     Serial.print("key ");
@@ -182,7 +212,7 @@ void loop() {
     Serial.println();
 
     // select a folder
-    if(pressedKey >= '0' && pressedKey <= '9'){
+    if(!statusSleepmode && pressedKey >= '0' && pressedKey <= '9'){
       int nextFolder = pressedKey - 48;
       if(RADIOPLAY_FOLDER == nextFolder) {
         playRadio(nextFolder);
