@@ -15,7 +15,12 @@ Uses...
 current track number will be persisted
 * volume up and down by keys # and *, will be persisted
 
-----
+## Arduino IDE
+
+Choose
+* Board: Arduino Nano
+* Prozessor: ATmega328P
+* Programmer "Arduino as ISP"
 
 ## Folder Structure on SD-Card:
 

@@ -15,6 +15,7 @@
 #include <Wire.h>
 #include <Keypad.h>
 #include <EEPROM.h>
+#include <avr/sleep.h>
 
 // size of the key pad
 const byte COLS = 3;
@@ -24,7 +25,7 @@ const int SWITCH_STOPTANZ = 4;
 const int SWITCH_SLEEPMODE = 5;
 
 const unsigned int LULLABY_FOLDER = 20;
-const unsigned int DELAY_STOPTANZ = 10000;
+const unsigned int DELAY_STOPTANZ = 7000;
 const unsigned int RADIOPLAY_FOLDER = 0; // in this folder you cannot skip tracks
 const unsigned int VOLUME_MAX = 25; // 0-30
 
@@ -178,6 +179,7 @@ void checkSwitches() {
     Serial.print(statusSleepmode);
     Serial.println();
     if(statusSleepmode) {
+      mp3.setVolume(10);
       mp3.playFileNumberInFolderNumber(LULLABY_FOLDER, 1);
     } else {
       mp3.pause();
@@ -194,15 +196,35 @@ void checkStoptanz() {
     } else if(time >= timeStarttanz && mp3.getStatus() == MP3_STATUS_PAUSED) {
       mp3.play();
       timeStarttanz = time;
-      timeStoptanz = random(time + 2000, time + 15000);
+      timeStoptanz = random(time + 5000, time + 20000);
     }
   }
+}
+
+void checkSleepmode() {
+    if(statusSleepmode) {
+      delay(500);
+      if(mp3.getStatus() == MP3_STATUS_STOPPED) {
+        Serial.println("Sleep mode end... sleep");
+        // mp3.sleep();
+        // Arduino sleep mode
+        // attachInterrupt(0, INT_PIN, LOW); // wake up via interupt
+        // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+        // sleep_enable();
+        // sleep_mode();
+        // Continue here after wake up
+        // but not implemented yet
+        // sleep_disable(); 
+      }
+    }
 }
 
 void loop() {
   checkSwitches();
 
   checkStoptanz();
+
+  checkSleepmode();
     
   pressedKey = keypad.getKey();
   if (pressedKey) {
