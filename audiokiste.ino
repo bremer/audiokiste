@@ -9,6 +9,15 @@
 //
 // feel free to optimize and modify the code, please share your
 // mods on the internet and send me a mail with the link
+// 
+// Schalter Pause
+// Schalter Stopptanz
+// * leiser
+// # lauter
+// 0 Schalaflieder (folder 00)
+// 9 Geschichten (folder 09)
+// 8 Radiogeschichten (folder 08)
+// 1 - 7 Musik (folder 01 - 07)
 
 #include <JQ6500_Serial.h>
 #include <SoftwareSerial.h>
@@ -22,11 +31,11 @@ const byte COLS = 3;
 const byte ROWS = 4;
 
 const int SWITCH_STOPTANZ = 4;
-const int SWITCH_SLEEPMODE = 5;
+const int SWITCH_PAUSE = 5;
 
 const unsigned int LULLABY_FOLDER = 20;
-const unsigned int DELAY_STOPTANZ = 7000;
-const unsigned int RADIOPLAY_FOLDER = 0; // in this folder you cannot skip tracks
+const unsigned int DELAY_STOPTANZ = 5000;
+const unsigned int RADIOPLAY_FOLDER = 999; // disabled in this folder you cannot skip tracks
 const unsigned int VOLUME_MAX = 25; // 0-30
 
 // Adresses for persistence
@@ -51,7 +60,7 @@ char pressedKey;
 unsigned int folder = 9999;
 unsigned int tracknumber = 1;
 int statusStoptanz;
-int statusSleepmode;
+int statusPause;
 long timeStarttanz = 2147483647L;
 long timeStoptanz = 2147483647L;
 
@@ -61,16 +70,16 @@ void setup() {
   Serial.println("Audiokiste");
   
   pinMode(SWITCH_STOPTANZ, INPUT);
-  pinMode(SWITCH_SLEEPMODE, INPUT);
+  pinMode(SWITCH_PAUSE, INPUT);
   pinMode(13, OUTPUT);
 
-  statusSleepmode = digitalRead(SWITCH_STOPTANZ);
-  statusSleepmode = digitalRead(SWITCH_SLEEPMODE);
+  statusStoptanz = digitalRead(SWITCH_STOPTANZ);
+  statusPause = digitalRead(SWITCH_PAUSE);
 
   // setup the mp3 module 
   mp3.begin(9600);
   mp3.reset();
-  delay(400);
+  delay(300);
   mp3.setVolume(readVolume()); // 0-30 - start with x
 
   mp3.setLoopMode(MP3_LOOP_FOLDER);
@@ -119,9 +128,12 @@ void play(int nextFolder) {
     Serial.print(nextFolder);
     Serial.println();
     folder = nextFolder;
+    tracknumber = 1;
     mp3.playFileNumberInFolderNumber(folder, 1); 
   } else {
-    mp3.next();
+    //tracknumber++;
+    mp3.playFileNumberInFolderNumber(folder, ++tracknumber); 
+    //mp3.next();
   }
 
   Serial.print("play folder ");
@@ -171,18 +183,17 @@ void checkSwitches() {
     }
   }
 
-  int newStatusSleepmode = digitalRead(SWITCH_SLEEPMODE);
-  if (statusSleepmode != newStatusSleepmode) {
+  int newStatusPause = digitalRead(SWITCH_PAUSE);
+  if (statusPause != newStatusPause) {
     delay(100);
-    statusSleepmode = newStatusSleepmode;
-    Serial.print("Sleepmode ");
-    Serial.print(statusSleepmode);
+    statusPause = newStatusPause;
+    Serial.print("Pause ");
+    Serial.print(statusPause);
     Serial.println();
-    if(statusSleepmode) {
-      mp3.setVolume(10);
-      mp3.playFileNumberInFolderNumber(LULLABY_FOLDER, 1);
-    } else {
+    if(statusPause) {
       mp3.pause();
+    } else {
+      mp3.play();
     } 
   }
 }
@@ -201,11 +212,11 @@ void checkStoptanz() {
   }
 }
 
-void checkSleepmode() {
-    if(statusSleepmode) {
-      delay(500);
-      if(mp3.getStatus() == MP3_STATUS_STOPPED) {
-        Serial.println("Sleep mode end... sleep");
+//void checkSleepmode() {
+//    if(statusSleepmode) {
+//      delay(500);
+//      if(mp3.getStatus() == MP3_STATUS_STOPPED) {
+//        Serial.println("Sleep mode end... sleep");
         // mp3.sleep();
         // Arduino sleep mode
         // attachInterrupt(0, INT_PIN, LOW); // wake up via interupt
@@ -215,17 +226,15 @@ void checkSleepmode() {
         // Continue here after wake up
         // but not implemented yet
         // sleep_disable(); 
-      }
-    }
-}
+//      }
+//    }
+//}
 
 void loop() {
   checkSwitches();
 
   checkStoptanz();
-
-  checkSleepmode();
-    
+  
   pressedKey = keypad.getKey();
   if (pressedKey) {
     Serial.print("key ");
@@ -234,7 +243,7 @@ void loop() {
     Serial.println();
 
     // select a folder
-    if(!statusSleepmode && pressedKey >= '0' && pressedKey <= '9'){
+    if(pressedKey >= '0' && pressedKey <= '9'){
       int nextFolder = pressedKey - 48;
       if(RADIOPLAY_FOLDER == nextFolder) {
         playRadio(nextFolder);
