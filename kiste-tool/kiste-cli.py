@@ -47,7 +47,7 @@ def add(sdcard: str, taste: int, file: str):
     filesFuerTaste = glob.glob(destPath + os.path.sep +  '[0-9][0-9][0-9].mp3')
 
     if len(filesFuerTaste) == 0:
-        nextFileNumber = 0
+        nextFileNumber = 1
     else:
         maxFilename = os.path.basename(max(filesFuerTaste))
         maxFilename = maxFilename.replace('.mp3', '').lstrip('0')
