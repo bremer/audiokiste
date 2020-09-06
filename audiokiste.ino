@@ -15,10 +15,9 @@
 // * leiser
 // # lauter
 // 0 Schalaflieder (folder 00)
-// 9 Geschichten (folder 09)
-// 8 Radiogeschichten (folder 08)
-// 1 - 7 Musik (folder 01 - 07)
+// 1 - 9 Musik (folder 01 - 09)
 
+// https://sparks.gogo.co.nz/jq6500/doxygen/index.html
 #include <JQ6500_Serial.h>
 #include <SoftwareSerial.h>
 #include <Wire.h>
@@ -33,14 +32,12 @@ const byte ROWS = 4;
 const int SWITCH_STOPTANZ = 4;
 const int SWITCH_PAUSE = 5;
 
-const unsigned int LULLABY_FOLDER = 20;
 const unsigned int DELAY_STOPTANZ = 5000;
-const unsigned int RADIOPLAY_FOLDER = 999; // disabled in this folder you cannot skip tracks
 const unsigned int VOLUME_MAX = 25; // 0-30
 
 // Adresses for persistence
-const unsigned int ADRESS_FILEINDEX = 0;
-const unsigned int ADRESS_VOLUME = 5;
+const unsigned int ADRESS_FILEINDEX_BASE = 0; // 0-9
+const unsigned int ADRESS_VOLUME = 10;
 
 JQ6500_Serial mp3(2,3); // create an mp3 object
 
@@ -99,24 +96,40 @@ unsigned int readVolume() {
   return volume;
 }
 
+unsigned int readTrack(unsigned int folder) {
+  int track = EEPROM.read(ADRESS_FILEINDEX_BASE + folder);
+  if (track < 1 || track > 255) {
+    // default if there is an other value in EEPROM
+    track = 1;
+  }
+  Serial.print("read track ");
+  Serial.print(track);
+  Serial.print(" folder ");
+  Serial.print(folder);
+  Serial.println();
+  return track;
+}
+
 void persistVolume(unsigned int volume) {
   unsigned int volumePersisted = EEPROM.read(ADRESS_VOLUME);
   if (volume != volumePersisted) {
     EEPROM.write(ADRESS_VOLUME, volume);
-    Serial.print("Volume persisted");
+    Serial.print("Volume persisted ");
     Serial.print(volume);
     Serial.println();
   }
 }
 
-void persistCurrentTrack() {
-  int tracknumberPersistent;
-  EEPROM.get(ADRESS_FILEINDEX, tracknumberPersistent);
-  if (tracknumber != tracknumberPersistent) {
-    EEPROM.put(ADRESS_FILEINDEX, tracknumber);
-    Serial.print("persist Track ");
-    Serial.print(tracknumber);
-    Serial.println(); 
+void persistTrack(unsigned int folder, unsigned int track) {
+  unsigned int trackPersisted = EEPROM.read(ADRESS_FILEINDEX_BASE + folder);
+  if (track != trackPersisted) {
+    EEPROM.write(ADRESS_FILEINDEX_BASE + folder, track);
+    Serial.print("Track ");
+    Serial.print(track);
+    Serial.print(" Folder ");
+    Serial.print(folder);
+    Serial.print(" persisted");
+    Serial.println();
   }
 }
 
@@ -128,12 +141,19 @@ void play(int nextFolder) {
     Serial.print(nextFolder);
     Serial.println();
     folder = nextFolder;
-    tracknumber = 1;
-    mp3.playFileNumberInFolderNumber(folder, 1); 
+    tracknumber = readTrack(folder);
+    mp3.playFileNumberInFolderNumber(folder, tracknumber); 
+    delay(500);
+    if(mp3.getStatus() != MP3_STATUS_PLAYING) {
+      tracknumber = 1;
+      mp3.playFileNumberInFolderNumber(folder, tracknumber);
+      persistTrack(folder, tracknumber); 
+      Serial.println("it seems like there is no matching file - play track 1");
+    }
+
   } else {
-    //tracknumber++;
-    mp3.playFileNumberInFolderNumber(folder, ++tracknumber); 
-    //mp3.next();
+    mp3.playFileNumberInFolderNumber(folder, ++tracknumber);
+    persistTrack(folder, tracknumber); 
   }
 
   Serial.print("play folder ");
@@ -141,27 +161,6 @@ void play(int nextFolder) {
   Serial.print(" File ");
   Serial.print(tracknumber);
   Serial.println();
-}
-
-void playRadio(int nextFolder) {
-  Serial.println("Radio play folder");
-  if(folder != nextFolder) {
-    Serial.print("play folder ");
-    Serial.print(nextFolder);
-    Serial.println();
-    folder = nextFolder;
-
-    EEPROM.get(ADRESS_FILEINDEX, tracknumber);
-    mp3.playFileNumberInFolderNumber(folder,tracknumber);
-    delay(500);
-    if(mp3.getStatus() != MP3_STATUS_PLAYING) {
-      mp3.playFileNumberInFolderNumber(folder, 1);
-      Serial.println("it seems like there is no matching file - play track 1");
-    }
-  } else {
-    mp3.playFileNumberInFolderNumber(folder,++tracknumber);
-    persistCurrentTrack();
-  }
 }
 
 void checkSwitches() {
@@ -245,11 +244,7 @@ void loop() {
     // select a folder
     if(pressedKey >= '0' && pressedKey <= '9'){
       int nextFolder = pressedKey - 48;
-      if(RADIOPLAY_FOLDER == nextFolder) {
-        playRadio(nextFolder);
-      } else {
-        play(nextFolder);        
-      }
+      play(nextFolder);        
     } else if(pressedKey == '#') {
       if (mp3.getVolume() <= VOLUME_MAX) {
         mp3.volumeUp();
